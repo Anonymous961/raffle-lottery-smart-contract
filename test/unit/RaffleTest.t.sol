@@ -6,6 +6,7 @@ import {Test} from "forge-std/Test.sol";
 import {DeployRaffle} from "script/DeployRaffle.s.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {Vm} from "forge-std/Vm.sol";
+import {VRFCoordinatorV2_5Mock} from "@chainlink/contracts/src/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
 
 contract RaffleTest is Test {
     Raffle private raffle;
@@ -89,7 +90,7 @@ contract RaffleTest is Test {
         vm.warp(block.timestamp + interval + 1);
         vm.roll(block.number + 1);
 
-        (bool upkeepNeeded,) = raffle.checkUpkeep("");
+        (bool upkeepNeeded, ) = raffle.checkUpkeep("");
 
         assert(!upkeepNeeded);
     }
@@ -103,7 +104,7 @@ contract RaffleTest is Test {
         raffle.performUpkeep("");
 
         // Act
-        (bool upkeepNeeded,) = raffle.checkUpkeep("");
+        (bool upkeepNeeded, ) = raffle.checkUpkeep("");
 
         // Assert
         assert(!upkeepNeeded);
@@ -137,7 +138,12 @@ contract RaffleTest is Test {
 
         // Act / Assert
         vm.expectRevert(
-            abi.encodeWithSelector(Raffle.Raffle_UpkeepNotNeeded.selector, currentBalance, numPlayers, rState)
+            abi.encodeWithSelector(
+                Raffle.Raffle_UpkeepNotNeeded.selector,
+                currentBalance,
+                numPlayers,
+                rState
+            )
         );
         raffle.performUpkeep("");
     }
@@ -150,7 +156,10 @@ contract RaffleTest is Test {
         _;
     }
 
-    function testPerformUpkeepUpdatesRaffleStateAndEmitsRequestId() public raffleEntered {
+    function testPerformUpkeepUpdatesRaffleStateAndEmitsRequestId()
+        public
+        raffleEntered
+    {
         //Account
         vm.recordLogs();
         raffle.performUpkeep("");
@@ -162,5 +171,19 @@ contract RaffleTest is Test {
         Raffle.RaffleState raffleState = raffle.getRaffleState();
         assert(uint256(requestId) > 0);
         assert(uint256(raffleState) == 1);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           FULLFILLRANDOMWORDS
+    //////////////////////////////////////////////////////////////*/
+
+    function testFulfillrandomWordsCanOnlyBeCalledAfterPerformUpkeep(
+        uint256 randomRequestId
+    ) public raffleEntered {
+        vm.expectRevert(VRFCoordinatorV2_5Mock.InvalidRequest.selector);
+        VRFCoordinatorV2_5Mock(vrfCoordinator).fulfillRandomWords(
+            randomRequestId,
+            address(raffle)
+        );
     }
 }
